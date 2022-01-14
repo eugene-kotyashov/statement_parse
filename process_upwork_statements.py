@@ -12,22 +12,41 @@ from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
 from pdfminer.high_level import extract_text
 
+import re
+
+regex = r"INVOICE #[\s]+DATE[\s]+DUE DATE[\s]+TOTAL AMOUNT[\s]+TOTAL DUE[\s]+(\b[A-Z][\d]+)[\s]+\w{3}\s\d{1,2},\s\d{4}[\s]+(\w{3}\s\d{1,2},\s\d{4})[\s]+\$\d+\.\d{2}[\s]+\$(\d+\.\d{2})"
+regex_one = r"Bill to:([\s\w\W\d]+)I N V O I C E[\s]+" + regex
+regex_two = r"Service Fee[\w\d\s\W]+Notes: Invoice from Upwork for ([A-Z][\d]+)[\w\d\s\W]+" + regex
+
 
 def process_first_invoice(invoice_text):
     '''
     returns (invoic_id, date string, amount) on sucess,
     None otherwise 
     '''
-    import re
-
-    regex = r"INVOICE #[\s]+DATE[\s]+DUE DATE[\s]+TOTAL AMOUNT[\s]+TOTAL DUE[\s]+(\b[A-Z][\d]+)[\s]+\w{3}\s\d{2},\s\d{4}[\s]+(\w{3}\s\d{2},\s\d{4})[\s]+\$\d+\.\d{2}[\s]+\$(\d+\.\d{2})"
-    
-    matches = re.finditer(regex, invoice_text, re.MULTILINE)
-    if matches == None:
-        return None
+    matches = re.finditer(regex_one, invoice_text, re.MULTILINE)
+    count = 0
     result = []
     for match in matches:
-        result.append(match.group(1,2,3))
+        count += 1
+        result.append(match.group(1,2,3,4))
+    if count == 0: 
+        return None
+    return result[0]
+
+def process_second_invoice(invoice_text):
+    '''
+    returns (invoic_id, date string, amount) on sucess,
+    None otherwise 
+    '''
+    matches = re.finditer(regex_two, invoice_text, re.MULTILINE)
+    count = 0
+    result = []
+    for match in matches:
+        count += 1
+        result.append(match.group(1,2,3,4))
+    if count == 0: 
+        return None
     return result[0]
     
 
@@ -85,11 +104,16 @@ for item in os.listdir(source_dir):  # loop through items in dir
         zip_ref.extractall(dir_name)  # extract file to dir
         zip_ref.close()  # close file
 
-for pdfFile in os.listdir(dir_name)[0:1]:
+for pdfFile in os.listdir(dir_name):
     print('-------')
     invoice_text = extract_text(os.path.join(dir_name, pdfFile))
+    # print(invoice_text)
     print('-------')
-    print(process_first_invoice(invoice_text))
+    res_sec = process_second_invoice(invoice_text)
+    if res_sec:
+        print("processed second ", res_sec)
+    else:
+        print("processed first ", process_first_invoice(invoice_text))
 
 
-print(get_usd_rate_on_data('2021-11-01'))
+#print(get_usd_rate_on_data('2021-11-01'))

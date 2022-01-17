@@ -11,12 +11,13 @@ from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
 from pdfminer.high_level import extract_text
+import datetime
 
 import re
 
 regex = r"INVOICE #[\s]+DATE[\s]+DUE DATE[\s]+TOTAL AMOUNT[\s]+TOTAL DUE[\s]+(\b[A-Z][\d]+)[\s]+\w{3}\s\d{1,2},\s\d{4}[\s]+(\w{3}\s\d{1,2},\s\d{4})[\s]+\$\d+\.\d{2}[\s]+\$(\d+\.\d{2})"
 regex_one = r"Bill to:([\s\w\W\d]+)I N V O I C E[\s]+" + regex
-regex_two = r"Service Fee[\w\d\s\W]+Notes: Invoice from Upwork for ([A-Z][\d]+)[\w\d\s\W]+" + regex
+regex_two = r"Service Fee[\w\d\s\W]+Amount: \$([\d]+.[\d]+) USD x[\w\d\s\W]+Notes: Invoice from Upwork for ([A-Z][\d]+)[\w\d\s\W]+" + regex
 
 
 def process_first_invoice(invoice_text):
@@ -44,7 +45,7 @@ def process_second_invoice(invoice_text):
     result = []
     for match in matches:
         count += 1
-        result.append(match.group(1,2,3,4))
+        result.append(match.group(1,2,3,4,5))
     if count == 0: 
         return None
     return result[0]
@@ -78,9 +79,13 @@ def convert_pdf_to_txt(path):
 
 
 def get_usd_rate_on_data(date_string):
-    r = requests.get("https://www.nbrb.by/api/exrates/rates/usd?parammode=2&{}".format(date_string))
+    date_obj = datetime.datetime.strptime(date_string, '%b %d, %Y')
+    iso_date_str = date_obj.date().isoformat()
+    # print("date for rate: ", iso_date_str)
+    r = requests.get(
+        "https://www.nbrb.by/api/exrates/rates/usd?parammode=2&ondate={}".format(iso_date_str))
     if r.status_code == requests.codes.ok:
-        return r.json()
+        return float(r.json()["Cur_OfficialRate"])
     else: 
         return None
 
@@ -105,15 +110,18 @@ for item in os.listdir(source_dir):  # loop through items in dir
         zip_ref.close()  # close file
 
 for pdfFile in os.listdir(dir_name):
-    print('-------')
     invoice_text = extract_text(os.path.join(dir_name, pdfFile))
-    # print(invoice_text)
-    print('-------')
     res_sec = process_second_invoice(invoice_text)
     if res_sec:
         print("processed second ", res_sec)
+        date_str = res_sec[3]
+        rate = get_usd_rate_on_data(date_str)
+        print("rate second: ", rate)
+        # print('-------')
+        # print(invoice_text)
+        # print('-------')
     else:
-        print("processed first ", process_first_invoice(invoice_text))
-
-
-#print(get_usd_rate_on_data('2021-11-01'))
+        res_first = process_first_invoice(invoice_text)
+        print("processed first ", res_first)
+        rate = get_usd_rate_on_data(res_first[2])
+        print("rate first", rate)

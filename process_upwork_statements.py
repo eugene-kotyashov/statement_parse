@@ -37,7 +37,7 @@ def process_first_invoice(invoice_text):
 
 def process_second_invoice(invoice_text):
     '''
-    returns (total_amount, first_invoice, related_invoice_id, date string, fee_amount) on sucess,
+    returns (total_amount, first_invoice, second_invoice_id, date string, fee_amount) on sucess,
     None otherwise 
     '''
     matches = re.finditer(regex_two, invoice_text, re.MULTILINE)
@@ -112,7 +112,7 @@ if not os.path.exists(dir_name):
 for item in os.listdir(source_dir):  # loop through items in dir
     print("processing ", item)
     if item.endswith(extension):  # check for ".zip" extension
-        print("processing ", item)
+        print("extracting ", item)
         file_name = os.path.abspath(item)  # get full path of files
         zip_ref = zipfile.ZipFile(file_name)  # create zipfile object
         zip_ref.extractall(dir_name)  # extract file to dir
@@ -138,15 +138,18 @@ for pdfFile in os.listdir(dir_name):
         # print('-------')
     else:
         res_first = process_first_invoice(invoice_text)
-        # print("processed first ", res_first)
-        rate = get_usd_rate_on_data(res_first[2])
-        # print("rate first", rate)
-        customer_info = re.sub(r"\s+", ' ', res_first[0])
-        customer_info = re.sub(r",", '', customer_info)
-        first_records.append((
-            customer_info,
-            res_first[1],
-            convert_to_date_obj(res_first[2]), res_first[3], rate))
+        if res_first:
+            # print("processed first ", res_first)
+            rate = get_usd_rate_on_data(res_first[2])
+            # print("rate first", rate)
+            customer_info = re.sub(r"\s+", ' ', res_first[0])
+            customer_info = re.sub(r",", '', customer_info)
+            first_records.append((
+                customer_info,
+                res_first[1],
+                convert_to_date_obj(res_first[2]), res_first[3], rate))
+        else:
+            print("invoice {} is of an unknown type!".format(pdfFile))
 
 if len(first_records) > len(second_records):
     print("got more of 1st invoices ")
@@ -173,3 +176,26 @@ for rec in first_records:
         round(byn, 2), ";",
         "USD", ";",
         rec[4])
+    print()
+    print()
+
+for rec in second_records:
+    print(
+       rec[1] + " " + date_obj_to_string(rec[3]) + ",",
+       rec[4] + ",",
+       rec[5]
+    )
+
+    print(
+        rec[1] + " " + date_obj_to_string(rec[3]) + ",",
+        "{}".format(round(float(rec[0]) - float(rec[4]),2)) + ",",
+        rec[5]
+    )
+
+    print()
+
+for rec in second_records:
+    print(
+        date_obj_to_string(rec[3]) + ",",
+        round(float(rec[4])*float(rec[5]),2)
+    )
